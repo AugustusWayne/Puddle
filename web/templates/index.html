@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>K8s CR Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
+    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; color: #a5b4fc; }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 1100px; }
+    .panel { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 1.25rem; }
+    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; margin-top: 12px; }
+    input, select { width: 100%; padding: 7px 10px; background: #0f1117; border: 1px solid #2d3148;
+                    border-radius: 6px; color: #e2e8f0; font-size: 13px; }
+    .add-field-btn { margin-top: 12px; padding: 6px 14px; background: #3730a3;
+                     color: #c7d2fe; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    .generate-btn  { margin-top: 16px; width: 100%; padding: 10px; background: #4f46e5;
+                     color: #fff; border: none; border-radius: 8px; font-size: 14px;
+                     font-weight: 600; cursor: pointer; }
+    .generate-btn:hover { background: #6366f1; }
+    .field-row { display: grid; grid-template-columns: 2fr 1.5fr 1fr 1fr 28px; gap: 6px;
+                 align-items: end; margin-top: 8px; }
+    .del-btn { background: none; border: 1px solid #ef444460; color: #ef4444;
+               border-radius: 4px; cursor: pointer; height: 32px; font-size: 14px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+    .tab  { padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 12px;
+            background: #0f1117; border: 1px solid #2d3148; color: #94a3b8; }
+    .tab.active { background: #3730a3; border-color: #4f46e5; color: #c7d2fe; }
+    pre  { font-family: monospace; font-size: 12px; line-height: 1.6;
+           overflow: auto; max-height: 520px; color: #a5f3c4; white-space: pre-wrap; }
+    .error-box { color: #f87171; background: #450a0a; border: 1px solid #7f1d1d;
+                 border-radius: 6px; padding: 10px; font-size: 12px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<h1>⎈ Kubernetes Custom Resource Generator</h1>
+<div class="layout">
+  <!-- Left: Config form -->
+  <div class="panel">
+    <div style="font-size:13px;font-weight:600;color:#c7d2fe;margin-bottom:8px">Resource config</div>
+
+    <label>Group (e.g. myapp.io)</label>
+    <input id="group" value="myapp.io">
+
+    <label>Version</label>
+    <input id="version" value="v1alpha1">
+
+    <label>Kind (PascalCase)</label>
+    <input id="kind" value="Database">
+
+    <label>Scope</label>
+    <select id="scope">
+      <option value="Namespaced">Namespaced</option>
+      <option value="Cluster">Cluster</option>
+    </select>
+
+    <label>Description</label>
+    <input id="description" value="Manages a self-hosted database instance">
+
+    <div style="margin-top:16px;font-size:12px;color:#94a3b8;margin-bottom:4px">Fields</div>
+    <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr 28px;gap:6px;">
+      <span style="font-size:11px;color:#475569">name</span>
+      <span style="font-size:11px;color:#475569">type</span>
+      <span style="font-size:11px;color:#475569">required</span>
+      <span style="font-size:11px;color:#475569">default</span>
+      <span></span>
+    </div>
+    <div id="fields-container"></div>
+    <button class="add-field-btn" onclick="addField()">+ Add field</button>
+
+    <button class="generate-btn" onclick="generate()">Generate manifests</button>
+    <div id="error-box" class="error-box" style="display:none"></div>
+  </div>
+
+  <!-- Right: Output preview -->
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('crd', this)">CRD</div>
+      <div class="tab"        onclick="switchTab('cr', this)">Sample CR</div>
+    </div>
+    <pre id="output">Click "Generate manifests" to see output here.</pre>
+  </div>
+</div>
+
+<script>
+let crdYaml = "", crYaml = "";
+const TYPES = ["string","integer","number","boolean","object","array"];
+
+function addField(name="", type="string", required=true, def_="") {
+  const c = document.getElementById("fields-container");
+  const idx = c.children.length;
+  const row = document.createElement("div");
+  row.className = "field-row";
+  row.innerHTML = `
+    <input placeholder="fieldName" value="${name}" class="fname">
+    <select class="ftype">${TYPES.map(t=>`<option ${t===type?'selected':''}>${t}</option>`).join('')}</select>
+    <select class="freq"><option value="true" ${required?'selected':''}>yes</option><option value="false" ${!required?'selected':''}>no</option></select>
+    <input placeholder="default" value="${def_}" class="fdefault">
+    <button class="del-btn" onclick="this.parentElement.remove()">×</button>
+  `;
+  c.appendChild(row);
+}
+
+function collectFields() {
+  return [...document.querySelectorAll(".field-row")].map(r => {
+    const obj = {
+      name:     r.querySelector(".fname").value,
+      type:     r.querySelector(".ftype").value,
+      required: r.querySelector(".freq").value === "true",
+    };
+    const d = r.querySelector(".fdefault").value;
+    if (d) {
+      obj.default = obj.type === "integer" ? parseInt(d)
+                  : obj.type === "boolean" ? (d === "true")
+                  : d;
+    }
+    return obj;
+  });
+}
+
+async function generate() {
+  document.getElementById("error-box").style.display = "none";
+  const payload = {
+    resource: {
+      group:       document.getElementById("group").value,
+      version:     document.getElementById("version").value,
+      kind:        document.getElementById("kind").value,
+      scope:       document.getElementById("scope").value,
+      description: document.getElementById("description").value,
+      fields:      collectFields(),
+    }
+  };
+
+  const res  = await fetch("/generate", {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify(payload),
+  });
+  const data = await res.json();
+
+  if (data.errors && data.errors.length) {
+    const eb = document.getElementById("error-box");
+    eb.textContent = data.errors.join("\n");
+    eb.style.display = "block";
+    return;
+  }
+
+  crdYaml = data.crd_yaml;
+  crYaml  = data.cr_yaml;
+  document.getElementById("output").textContent = crdYaml;
+}
+
+function switchTab(tab, el) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  el.classList.add("active");
+  document.getElementById("output").textContent =
+    tab === "crd" ? (crdYaml || "Generate first.") : (crYaml || "Generate first.");
+}
+
+// Seed with sample fields
+addField("engine",        "string",  true,  "");
+addField("replicas",      "integer", true,  "");
+addField("storageGB",     "integer", false, "20");
+addField("enableBackups", "boolean", false, "false");
+</script>
+</body>
+</html>
