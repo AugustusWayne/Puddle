@@ -2,162 +2,454 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>K8s CR Generator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Generate production-ready Kubernetes CRD and CR manifests from a simple YAML config — no boilerplate required.">
+  <title>K8s Custom Resource Generator</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 2rem; }
-    h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 1.5rem; color: #a5b4fc; }
-    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 1100px; }
-    .panel { background: #1a1d2e; border: 1px solid #2d3148; border-radius: 10px; padding: 1.25rem; }
-    label { display: block; font-size: 12px; color: #94a3b8; margin-bottom: 4px; margin-top: 12px; }
-    input, select { width: 100%; padding: 7px 10px; background: #0f1117; border: 1px solid #2d3148;
-                    border-radius: 6px; color: #e2e8f0; font-size: 13px; }
-    .add-field-btn { margin-top: 12px; padding: 6px 14px; background: #3730a3;
-                     color: #c7d2fe; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
-    .generate-btn  { margin-top: 16px; width: 100%; padding: 10px; background: #4f46e5;
-                     color: #fff; border: none; border-radius: 8px; font-size: 14px;
-                     font-weight: 600; cursor: pointer; }
-    .generate-btn:hover { background: #6366f1; }
-    .field-row { display: grid; grid-template-columns: 2fr 1.5fr 1fr 1fr 28px; gap: 6px;
-                 align-items: end; margin-top: 8px; }
-    .del-btn { background: none; border: 1px solid #ef444460; color: #ef4444;
-               border-radius: 4px; cursor: pointer; height: 32px; font-size: 14px; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 10px; }
-    .tab  { padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 12px;
-            background: #0f1117; border: 1px solid #2d3148; color: #94a3b8; }
-    .tab.active { background: #3730a3; border-color: #4f46e5; color: #c7d2fe; }
-    pre  { font-family: monospace; font-size: 12px; line-height: 1.6;
-           overflow: auto; max-height: 520px; color: #a5f3c4; white-space: pre-wrap; }
-    .error-box { color: #f87171; background: #450a0a; border: 1px solid #7f1d1d;
-                 border-radius: 6px; padding: 10px; font-size: 12px; margin-top: 8px; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0b0d14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 1.5rem 2rem 3rem;
+    }
+
+    /* ── Header ── */
+    header { max-width: 1200px; margin-bottom: 1.5rem; }
+    header h1 { font-size: 1.35rem; font-weight: 700; color: #a5b4fc; }
+    header p  { font-size: 12px; color: #64748b; margin-top: 3px; }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      max-width: 1200px;
+    }
+
+    /* ── Panel ── */
+    .panel {
+      background: #141726;
+      border: 1px solid #232840;
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .panel-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: #6366f1;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Form controls ── */
+    label {
+      display: block;
+      font-size: 11px;
+      color: #94a3b8;
+      margin: 10px 0 3px;
+    }
+    input, select {
+      width: 100%;
+      padding: 7px 10px;
+      background: #0b0d14;
+      border: 1px solid #232840;
+      border-radius: 6px;
+      color: #e2e8f0;
+      font-size: 13px;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus { outline: none; border-color: #4f46e5; }
+
+    /* ── Field table header ── */
+    .field-header {
+      display: grid;
+      grid-template-columns: 2fr 1.4fr .9fr 1fr 28px;
+      gap: 6px;
+      margin-top: 14px;
+    }
+    .field-header span { font-size: 10px; color: #475569; }
+
+    /* ── Field row ── */
+    .field-row {
+      display: grid;
+      grid-template-columns: 2fr 1.4fr .9fr 1fr 28px;
+      gap: 6px;
+      align-items: center;
+      margin-top: 6px;
+    }
+    .del-btn {
+      background: none;
+      border: 1px solid #ef444455;
+      color: #ef4444;
+      border-radius: 4px;
+      cursor: pointer;
+      height: 32px;
+      font-size: 15px;
+      transition: background .15s;
+    }
+    .del-btn:hover { background: #450a0a; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 8px; margin-top: 14px; }
+    .btn {
+      flex: 1;
+      padding: 9px 4px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-add    { flex: 0 0 auto; padding: 7px 14px; background: #1e2040;
+                  color: #c7d2fe; border: 1px solid #2d3260; border-radius: 6px;
+                  font-size: 12px; font-weight: 500; cursor: pointer; }
+    .btn-add:hover { background: #252850; }
+
+    .btn-generate { background: #4f46e5; color: #fff; }
+    .btn-generate:hover:not(:disabled) { background: #6366f1; }
+
+    .btn-apply    { background: #059669; color: #fff; }
+    .btn-apply:hover:not(:disabled) { background: #10b981; }
+
+    /* ── Error box ── */
+    .error-box {
+      display: none;
+      color: #f87171;
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 6px;
+      padding: 9px 12px;
+      font-size: 12px;
+      margin-top: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* ── Output panel ── */
+    .tabs { display: flex; gap: 6px; margin-bottom: 10px; align-items: center; }
+    .tab {
+      padding: 4px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      background: #0b0d14;
+      border: 1px solid #232840;
+      color: #94a3b8;
+      transition: background .15s;
+    }
+    .tab.active { background: #1e2040; border-color: #4f46e5; color: #c7d2fe; }
+
+    pre#output {
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      overflow: auto;
+      max-height: 420px;
+      color: #86efac;
+      white-space: pre-wrap;
+      word-break: break-all;
+      background: #0b0d14;
+      border: 1px solid #232840;
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    /* ── Terminal (apply output) ── */
+    #terminal-section { margin-top: 14px; display: none; }
+    #terminal-section .panel-title { color: #10b981; }
+
+    #terminal {
+      font-family: "JetBrains Mono", "Fira Code", monospace;
+      font-size: 11.5px;
+      line-height: 1.7;
+      background: #060810;
+      border: 1px solid #0d1f17;
+      border-radius: 8px;
+      padding: 12px;
+      max-height: 260px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .t-cmd    { color: #6ee7b7; }
+    .t-ok     { color: #86efac; }
+    .t-err    { color: #f87171; }
+    .t-info   { color: #60a5fa; }
+    .t-dim    { color: #475569; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid #4f46e580;
+      border-top-color: #a5b4fc;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-<h1>⎈ Kubernetes Custom Resource Generator</h1>
+
+<header>
+  <h1>⎈ Kubernetes Custom Resource Generator</h1>
+  <p>Define your resource. Get production-ready CRD + CR manifests instantly.</p>
+</header>
+
 <div class="layout">
-  <!-- Left: Config form -->
+
+  <!-- ───────── LEFT PANEL — Config form ───────── -->
   <div class="panel">
-    <div style="font-size:13px;font-weight:600;color:#c7d2fe;margin-bottom:8px">Resource config</div>
+    <div class="panel-title">Resource config</div>
 
-    <label>Group (e.g. myapp.io)</label>
-    <input id="group" value="myapp.io">
+    <label for="inp-group">API Group</label>
+    <input id="inp-group" placeholder="e.g. myapp.io" value="myapp.io">
 
-    <label>Version</label>
-    <input id="version" value="v1alpha1">
+    <label for="inp-version">Version</label>
+    <input id="inp-version" placeholder="e.g. v1alpha1" value="v1alpha1">
 
-    <label>Kind (PascalCase)</label>
-    <input id="kind" value="Database">
+    <label for="inp-kind">Kind <span style="color:#475569">(PascalCase)</span></label>
+    <input id="inp-kind" placeholder="e.g. Database" value="Database">
 
-    <label>Scope</label>
-    <select id="scope">
+    <label for="inp-scope">Scope</label>
+    <select id="inp-scope">
       <option value="Namespaced">Namespaced</option>
       <option value="Cluster">Cluster</option>
     </select>
 
-    <label>Description</label>
-    <input id="description" value="Manages a self-hosted database instance">
+    <label for="inp-desc">Description</label>
+    <input id="inp-desc" placeholder="Short description of what this resource manages"
+           value="Manages a self-hosted database instance">
 
-    <div style="margin-top:16px;font-size:12px;color:#94a3b8;margin-bottom:4px">Fields</div>
-    <div style="display:grid;grid-template-columns:2fr 1.5fr 1fr 1fr 28px;gap:6px;">
-      <span style="font-size:11px;color:#475569">name</span>
-      <span style="font-size:11px;color:#475569">type</span>
-      <span style="font-size:11px;color:#475569">required</span>
-      <span style="font-size:11px;color:#475569">default</span>
-      <span></span>
+    <!-- Field table -->
+    <div class="field-header">
+      <span>name</span><span>type</span><span>req?</span><span>default</span><span></span>
     </div>
     <div id="fields-container"></div>
-    <button class="add-field-btn" onclick="addField()">+ Add field</button>
 
-    <button class="generate-btn" onclick="generate()">Generate manifests</button>
-    <div id="error-box" class="error-box" style="display:none"></div>
-  </div>
+    <button class="btn-add" onclick="addField()" style="margin-top:10px">+ Add field</button>
 
-  <!-- Right: Output preview -->
-  <div class="panel">
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab('crd', this)">CRD</div>
-      <div class="tab"        onclick="switchTab('cr', this)">Sample CR</div>
+    <div class="btn-row">
+      <button id="btn-generate" class="btn btn-generate" onclick="generate()">Generate</button>
+      <button id="btn-apply"    class="btn btn-apply"    onclick="applyToCluster()" disabled>
+        🚀 Apply to Cluster
+      </button>
     </div>
-    <pre id="output">Click "Generate manifests" to see output here.</pre>
+
+    <div id="error-box" class="error-box"></div>
   </div>
-</div>
+
+  <!-- ───────── RIGHT PANEL — Output ───────── -->
+  <div>
+    <div class="panel">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('crd', this)">CRD</div>
+        <div class="tab"        onclick="switchTab('cr',  this)">Sample CR</div>
+      </div>
+      <pre id="output">Click "Generate" to preview manifests here.</pre>
+    </div>
+
+    <!-- Terminal output from kubectl apply -->
+    <div id="terminal-section" class="panel" style="margin-top:1.25rem">
+      <div class="panel-title">🖥 kubectl output</div>
+      <div id="terminal"></div>
+    </div>
+  </div>
+
+</div><!-- /.layout -->
 
 <script>
-let crdYaml = "", crYaml = "";
+// ────────────── State ──────────────
+let crdYaml = "";
+let crYaml  = "";
 const TYPES = ["string","integer","number","boolean","object","array"];
 
-function addField(name="", type="string", required=true, def_="") {
-  const c = document.getElementById("fields-container");
-  const idx = c.children.length;
+// ────────────── Helpers ──────────────
+function showError(msg) {
+  const eb = document.getElementById("error-box");
+  eb.textContent = msg;
+  eb.style.display = "block";
+}
+function clearError() {
+  const eb = document.getElementById("error-box");
+  eb.textContent = "";
+  eb.style.display = "none";
+}
+
+// ────────────── Field builder ──────────────
+function addField(name = "", type = "string", required = true, def_ = "") {
+  const container = document.getElementById("fields-container");
   const row = document.createElement("div");
   row.className = "field-row";
   row.innerHTML = `
     <input placeholder="fieldName" value="${name}" class="fname">
-    <select class="ftype">${TYPES.map(t=>`<option ${t===type?'selected':''}>${t}</option>`).join('')}</select>
-    <select class="freq"><option value="true" ${required?'selected':''}>yes</option><option value="false" ${!required?'selected':''}>no</option></select>
+    <select class="ftype">
+      ${TYPES.map(t => `<option ${t === type ? "selected" : ""}>${t}</option>`).join("")}
+    </select>
+    <select class="freq">
+      <option value="true"  ${required  ? "selected" : ""}>yes</option>
+      <option value="false" ${!required ? "selected" : ""}>no</option>
+    </select>
     <input placeholder="default" value="${def_}" class="fdefault">
-    <button class="del-btn" onclick="this.parentElement.remove()">×</button>
+    <button class="del-btn" onclick="this.closest('.field-row').remove()">×</button>
   `;
-  c.appendChild(row);
+  container.appendChild(row);
 }
 
 function collectFields() {
-  return [...document.querySelectorAll(".field-row")].map(r => {
+  return [...document.querySelectorAll(".field-row")].map(row => {
+    const type     = row.querySelector(".ftype").value;
+    const required = row.querySelector(".freq").value === "true";
+    const rawDef   = row.querySelector(".fdefault").value.trim();
+
     const obj = {
-      name:     r.querySelector(".fname").value,
-      type:     r.querySelector(".ftype").value,
-      required: r.querySelector(".freq").value === "true",
+      name:     row.querySelector(".fname").value.trim(),
+      type,
+      required,
     };
-    const d = r.querySelector(".fdefault").value;
-    if (d) {
-      obj.default = obj.type === "integer" ? parseInt(d)
-                  : obj.type === "boolean" ? (d === "true")
-                  : d;
+    if (rawDef !== "") {
+      if (type === "integer") obj.default = parseInt(rawDef, 10);
+      else if (type === "number")  obj.default = parseFloat(rawDef);
+      else if (type === "boolean") obj.default = (rawDef === "true");
+      else obj.default = rawDef;
     }
     return obj;
   });
 }
 
-async function generate() {
-  document.getElementById("error-box").style.display = "none";
-  const payload = {
+function buildPayload() {
+  return {
     resource: {
-      group:       document.getElementById("group").value,
-      version:     document.getElementById("version").value,
-      kind:        document.getElementById("kind").value,
-      scope:       document.getElementById("scope").value,
-      description: document.getElementById("description").value,
+      group:       document.getElementById("inp-group").value.trim(),
+      version:     document.getElementById("inp-version").value.trim(),
+      kind:        document.getElementById("inp-kind").value.trim(),
+      scope:       document.getElementById("inp-scope").value,
+      description: document.getElementById("inp-desc").value.trim(),
       fields:      collectFields(),
     }
   };
-
-  const res  = await fetch("/generate", {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify(payload),
-  });
-  const data = await res.json();
-
-  if (data.errors && data.errors.length) {
-    const eb = document.getElementById("error-box");
-    eb.textContent = data.errors.join("\n");
-    eb.style.display = "block";
-    return;
-  }
-
-  crdYaml = data.crd_yaml;
-  crYaml  = data.cr_yaml;
-  document.getElementById("output").textContent = crdYaml;
 }
 
+// ────────────── Generate ──────────────
+async function generate() {
+  clearError();
+  crdYaml = "";
+  crYaml  = "";
+  document.getElementById("btn-apply").disabled = true;
+
+  const btn = document.getElementById("btn-generate");
+  btn.innerHTML = "Generating…<span class='spinner'></span>";
+  btn.disabled  = true;
+
+  try {
+    const res  = await fetch("/generate", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(buildPayload()),
+    });
+    const data = await res.json();
+
+    if (data.errors && data.errors.length) {
+      showError(data.errors.join("\n"));
+      return;
+    }
+
+    crdYaml = data.crd_yaml;
+    crYaml  = data.cr_yaml;
+    document.getElementById("output").textContent = crdYaml;
+
+    // Make the CRD tab active
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    document.querySelector(".tab").classList.add("active");
+
+    document.getElementById("btn-apply").disabled = false;
+
+  } catch (err) {
+    showError("Network error: " + err.message);
+  } finally {
+    btn.innerHTML = "Generate";
+    btn.disabled  = false;
+  }
+}
+
+// ────────────── Tab switch ──────────────
 function switchTab(tab, el) {
   document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
   el.classList.add("active");
-  document.getElementById("output").textContent =
-    tab === "crd" ? (crdYaml || "Generate first.") : (crYaml || "Generate first.");
+  const content = tab === "crd" ? crdYaml : crYaml;
+  document.getElementById("output").textContent = content || "Generate first.";
 }
 
-// Seed with sample fields
+// ────────────── Apply to Cluster ──────────────
+function termLine(text, cls = "t-ok") {
+  const div = document.createElement("div");
+  div.className = cls;
+  div.textContent = text;
+  document.getElementById("terminal").appendChild(div);
+}
+function termClear() {
+  document.getElementById("terminal").innerHTML = "";
+}
+
+async function applyToCluster() {
+  clearError();
+  termClear();
+
+  const section = document.getElementById("terminal-section");
+  section.style.display = "block";
+  section.scrollIntoView({ behavior: "smooth" });
+
+  const btn = document.getElementById("btn-apply");
+  btn.innerHTML = "🚀 Applying…<span class='spinner' style='border-top-color:#6ee7b7'></span>";
+  btn.disabled  = true;
+  document.getElementById("btn-generate").disabled = true;
+
+  termLine("─".repeat(48), "t-dim");
+  termLine("Starting kubectl apply sequence…", "t-info");
+  termLine("─".repeat(48), "t-dim");
+
+  try {
+    const res  = await fetch("/apply", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(buildPayload()),
+    });
+    const data = await res.json();
+
+    // Render each kubectl step
+    (data.steps || []).forEach(step => {
+      termLine("\n$ " + step.cmd, "t-cmd");
+      if (step.stdout) termLine(step.stdout, step.returncode === 0 ? "t-ok" : "t-err");
+      if (step.stderr) termLine(step.stderr, "t-err");
+    });
+
+    if (data.errors && data.errors.length) {
+      termLine("\n✗ Apply failed:", "t-err");
+      data.errors.forEach(e => termLine(e, "t-err"));
+    } else {
+      termLine("\n✓ All steps completed successfully.", "t-ok");
+    }
+
+  } catch (err) {
+    termLine("Network error: " + err.message, "t-err");
+  } finally {
+    btn.innerHTML = "🚀 Apply to Cluster";
+    btn.disabled  = !crdYaml;
+    document.getElementById("btn-generate").disabled = false;
+  }
+}
+
+// ────────────── Seed fields ──────────────
 addField("engine",        "string",  true,  "");
 addField("replicas",      "integer", true,  "");
 addField("storageGB",     "integer", false, "20");
